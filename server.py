@@ -68,7 +68,7 @@ async def api_tts(text: str = Form(...)):
         print(e)
         raise HTTPException(status_code=500, detail='Something went wrong')
 
-@app.route('/')
+@app.get('/')
 async def home(request: Request):
     return templates.TemplateResponse(
         request=request, name="index.html", context={}
