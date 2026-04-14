@@ -15,7 +15,7 @@ import warnings
 
 
 # Load Wav2Vec2
-MODEL_NAME = "amsterdamNLP/Wav2Vec2-NL"
+MODEL_NAME = "GroNLP/wav2vec2-dutch-large"
 processor = Wav2Vec2Processor.from_pretrained(MODEL_NAME)
 model = Wav2Vec2Model.from_pretrained(MODEL_NAME)
 model.eval()
