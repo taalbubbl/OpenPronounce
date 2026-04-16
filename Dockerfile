@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
 
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -8,20 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install TTS (coqui) system-level dep if needed; skip for now (commented in flake)
-# RUN apt-get install -y ... 
-
 WORKDIR /app
 
-# Python dependencies
-# Install torch/torchaudio separately first (large, benefits from layer caching)
+# Install Python packages (torch/torchaudio already in base image)
 RUN pip install --no-cache-dir \
-    torch \
     torchaudio \
-    --index-url https://download.pytorch.org/whl/cpu
-
-# Install remaining Python packages
-RUN pip install --no-cache-dir \
     transformers \
     librosa \
     dtw-python \
@@ -42,15 +33,13 @@ RUN pip install --no-cache-dir \
     soundfile \
     huggingface-hub
 
-# Environment variables (mirrors shellHook)
+# Environment variables
 ENV HF_HOME=/app/.cache/huggingface
 ENV TF_CPP_MIN_LOG_LEVEL=3
 
 # Copy application source
 COPY . .
 
-# Expose ports for FastAPI and Streamlit
-EXPOSE 8000 8501
+EXPOSE 8000
 
-# Default command — override as needed
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
