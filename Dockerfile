@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
+FROM python:3.11-slim
 
 # System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,14 +10,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python packages (torch/torchaudio already in base image)
+# Install torch first with a pinned numpy-compatible version
 RUN pip install --no-cache-dir \
+    "numpy<2" \
+    torch \
     torchaudio \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Install remaining Python packages
+RUN pip install --no-cache-dir \
     transformers \
     librosa \
     dtw-python \
     phonemizer \
-    numpy \
     fastapi \
     python-multipart \
     pydub \
@@ -43,4 +48,5 @@ COPY . .
 EXPOSE 8000
 
 RUN python -c "import speech; import audio"
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
