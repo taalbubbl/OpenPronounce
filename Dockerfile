@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install torch first with a pinned numpy-compatible version
+# Install torch first with explicit version >= 2.6
 RUN pip install --no-cache-dir \
     "numpy<2" \
-    torch \
-    torchaudio \
+    "torch>=2.6.0" \
+    "torchaudio>=2.6.0" \
     --index-url https://download.pytorch.org/whl/cu121
 
 # Install remaining Python packages
@@ -38,16 +38,11 @@ RUN pip install --no-cache-dir \
     soundfile \
     huggingface-hub
 
-# Environment variables
 ENV HF_HOME=/app/.cache/huggingface
 ENV TF_CPP_MIN_LOG_LEVEL=3
 
-
-# Copy application source
 COPY . .
 
 EXPOSE 8000
-
-#RUN python -c "import speech; import audio"
 
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
