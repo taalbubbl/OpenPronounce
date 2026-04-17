@@ -26,6 +26,13 @@ def upload_webp(file):
 
 @app.post("/pronunciation")
 async def api_analyze_pronunciation(file: UploadFile = File(...), expected_text: str = Form(...)):
+    from datetime import datetime
+
+    # Get current timestamp and format it
+    formatted_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Print the formatted timestamp
+    print("Running pronounciation model at:",formatted_timestamp)
     wav_file = upload_webp(file)
     try:
         sound = audio.load(wav_file)
@@ -37,6 +44,13 @@ async def api_analyze_pronunciation(file: UploadFile = File(...), expected_text:
 
 @app.post("/speech2text")
 async def api_speech2text(file: UploadFile = File(...)):
+    from datetime import datetime
+
+    # Get current timestamp and format it
+    formatted_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Print the formatted timestamp
+    print("Running stt model at:",formatted_timestamp)
     wav_file = upload_webp(file)
     try:
         sound = audio.load(wav_file)

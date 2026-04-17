@@ -52,7 +52,6 @@ def text2speech(text, lang="nl", filename="reference.mp3", target_sr=16000):
     """
     Convertit un texte en audio et force le sampling rate à 16 kHz.
     """
-
     if not filename:
         filename = f"/tmp/{uuid.uuid4()}.wav"
 
