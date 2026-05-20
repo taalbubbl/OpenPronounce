@@ -18,7 +18,7 @@
         };
 
         # ── Python interpreter + packages ──────────────────────────────────
-        python = pkgs.python311;
+        python = pkgs.python312;
 
         pythonEnv = python.withPackages (ps: with ps; [
           # core ML
@@ -32,7 +32,11 @@
           pydub
 
           # alignment / distance
-          dtw-python
+          (dtw-python.overrideAttrs (old: {
+            postInstall = (old.postInstall or "") + ''
+              rm -rf $out/lib/python*/site-packages/docs
+            '';
+          }))
           fastdtw
           scipy
           scikit-learn
@@ -48,7 +52,7 @@
           gtts
 
           # Levenshtein
-          python-levenshtein
+          levenshtein
 
           # web / API
           fastapi
@@ -83,10 +87,14 @@
             export PHONEMIZER_ESPEAK_PATH="${pkgs.espeak-ng}/bin/espeak-ng"
             export LD_LIBRARY_PATH="${pkgs.espeak-ng}/lib:$LD_LIBRARY_PATH"
 
-            # Make sure the spacy model is downloaded on first use
-            if ! python -c "import spacy; spacy.load('en_core_web_sm')" 2>/dev/null; then
+            # Install spaCy model to a writable cache dir (Nix store is immutable)
+            export SPACY_MODELS_DIR="$HOME/.cache/openpronounce/spacy"
+            mkdir -p "$SPACY_MODELS_DIR"
+            export PYTHONPATH="$SPACY_MODELS_DIR:$PYTHONPATH"
+            if ! python -c "import en_core_web_sm" 2>/dev/null; then
               echo "→ Downloading spaCy model en_core_web_sm …"
-              python -m spacy download en_core_web_sm
+              pip install --target="$SPACY_MODELS_DIR" --quiet \
+                "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
             fi
 
             echo ""
