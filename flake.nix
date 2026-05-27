@@ -76,9 +76,9 @@
                   torchaudio = pyprev.torchaudio.overridePythonAttrs (_: {
                     doCheck = false;
                     doInstallCheck = false;
-                    checkPhase = "true";
-                    installCheckPhase = "true";
-                    pytestCheckPhase = "true";
+                    checkPhase = "false";
+                    installCheckPhase = "false";
+                    pytestCheckPhase = "false";
                   });
                 };
               };
