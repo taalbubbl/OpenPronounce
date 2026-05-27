@@ -19,6 +19,8 @@ from transformers import (
 
 import audio
 
+#MOdel to try: jonatasgrosman/wav2vec2-large-xlsr-53-dutch
+
 # Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
 EMBEDDING_MODEL_NAME = "amsterdamNLP/Wav2Vec2-NL"
 feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(EMBEDDING_MODEL_NAME)

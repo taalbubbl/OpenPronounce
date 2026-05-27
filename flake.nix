@@ -7,20 +7,10 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          config = {
-            allowUnfree = true;       # needed for some CUDA bits if you enable them
-            allowBroken = false;
-          };
-        };
-
-        # ── Python interpreter + packages ──────────────────────────────────
-        python = pkgs.python312;
-
-        pythonEnv = python.withPackages (ps: with ps; [
+    let
+      mkPythonEnv = pkgs:
+        let python = pkgs.python312;
+        in python.withPackages (ps: with ps; [
           # core ML
           torch
           torchaudio
@@ -42,13 +32,12 @@
           scikit-learn
 
           # pronunciation
-          phonemizer       # wraps espeak-ng; see shellHook for the path
+          phonemizer
 
           # NLP
           spacy
 
-          # text-to-speech (lightweight gtts only; coqui-tts is not in nixpkgs –
-          # install it via pip in a venv if you need TTS synthesis, see README below)
+          # text-to-speech
           gtts
 
           # Levenshtein
@@ -64,30 +53,74 @@
 
           # utilities
           numpy
-          pip          # available so you can `pip install coqui-tts` in a venv
+          pip
         ]);
+    in
+    (flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfree = true;
+            allowBroken = false;
+          };
+        };
 
+        pythonEnv = mkPythonEnv pkgs;
       in {
+        # ── Buildable package ──────────────────────────────────────────────
+        packages.default = pkgs.stdenv.mkDerivation {
+          pname = "openpronounce";
+          version = "0.1.0";
+          src = ./.;
+
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+
+          dontBuild = true;
+
+          installPhase = ''
+            runHook preInstall
+
+            mkdir -p $out/share/openpronounce
+            cp -r . $out/share/openpronounce/
+
+            mkdir -p $out/bin
+            makeWrapper ${pythonEnv}/bin/python $out/bin/openpronounce-server \
+              --add-flags "-m uvicorn server:app" \
+              --set PHONEMIZER_ESPEAK_PATH "${pkgs.espeak-ng}/bin/espeak-ng" \
+              --prefix LD_LIBRARY_PATH : "${pkgs.espeak-ng}/lib" \
+              --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.ffmpeg pkgs.espeak-ng pkgs.sox ]}" \
+              --chdir "$out/share/openpronounce"
+
+            makeWrapper ${pythonEnv}/bin/streamlit $out/bin/openpronounce-streamlit \
+              --add-flags "run streamlit_app.py" \
+              --set PHONEMIZER_ESPEAK_PATH "${pkgs.espeak-ng}/bin/espeak-ng" \
+              --prefix LD_LIBRARY_PATH : "${pkgs.espeak-ng}/lib" \
+              --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.ffmpeg pkgs.espeak-ng pkgs.sox ]}" \
+              --chdir "$out/share/openpronounce"
+
+            runHook postInstall
+          '';
+
+          meta.mainProgram = "openpronounce-server";
+        };
+
         # ── Dev shell ──────────────────────────────────────────────────────
         devShells.default = pkgs.mkShell {
           name = "openpronounce";
 
           packages = [
             pythonEnv
-
-            # system deps
-            pkgs.ffmpeg          # audio decoding (packages.txt)
-            pkgs.espeak-ng       # phonemizer backend
-            pkgs.sox             # helpful for audio debugging
+            pkgs.ffmpeg
+            pkgs.espeak-ng
+            pkgs.sox
             pkgs.git
           ];
 
           shellHook = ''
-            # Tell phonemizer where espeak-ng lives
             export PHONEMIZER_ESPEAK_PATH="${pkgs.espeak-ng}/bin/espeak-ng"
             export LD_LIBRARY_PATH="${pkgs.espeak-ng}/lib:$LD_LIBRARY_PATH"
 
-            # Install spaCy model to a writable cache dir (Nix store is immutable)
             export SPACY_MODELS_DIR="$HOME/.cache/openpronounce/spacy"
             mkdir -p "$SPACY_MODELS_DIR"
             export PYTHONPATH="$SPACY_MODELS_DIR:$PYTHONPATH"
@@ -117,7 +150,6 @@
 
         # ── Runnable apps ──────────────────────────────────────────────────
         apps = {
-          # `nix run .#server`
           server = {
             type = "app";
             program = toString (pkgs.writeShellScript "openpronounce-server" ''
@@ -128,7 +160,6 @@
             '');
           };
 
-          # `nix run .#streamlit`
           streamlit = {
             type = "app";
             program = toString (pkgs.writeShellScript "openpronounce-streamlit" ''
@@ -138,9 +169,88 @@
             '');
           };
 
-          # `nix run .` → default is the FastAPI server
           default = self.apps.${system}.server;
         };
       }
-    );
+    )) // {
+      # ── NixOS module (system-independent) ────────────────────────────────
+      nixosModules.default = { config, lib, pkgs, ... }:
+        let
+          cfg = config.services.openpronounce;
+        in {
+          options.services.openpronounce = {
+            enable = lib.mkEnableOption "OpenPronounce pronunciation feedback server";
+
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+              description = "The OpenPronounce package to run.";
+            };
+
+            user = lib.mkOption {
+              type = lib.types.str;
+              default = "openpronounce";
+            };
+
+            group = lib.mkOption {
+              type = lib.types.str;
+              default = "openpronounce";
+            };
+
+            dataDir = lib.mkOption {
+              type = lib.types.str;
+              default = "/var/lib/openpronounce";
+            };
+
+            host = lib.mkOption {
+              type = lib.types.str;
+              default = "0.0.0.0";
+            };
+
+            port = lib.mkOption {
+              type = lib.types.port;
+              default = 8000;
+            };
+
+            environmentFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              example = "/run/secrets/openpronounce.env";
+              description = "EnvironmentFile passed to the systemd unit.";
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            users.users.${cfg.user} = {
+              isSystemUser = true;
+              group = cfg.group;
+              home = cfg.dataDir;
+              createHome = true;
+            };
+            users.groups.${cfg.group} = { };
+
+            systemd.services.openpronounce = {
+              description = "OpenPronounce pronunciation feedback server";
+              wantedBy = [ "multi-user.target" ];
+              after = [ "network.target" ];
+
+              serviceConfig = {
+                User = cfg.user;
+                Group = cfg.group;
+                WorkingDirectory = cfg.dataDir;
+                ExecStart = "${cfg.package}/bin/openpronounce-server --host ${cfg.host} --port ${toString cfg.port}";
+                Restart = "on-failure";
+                RestartSec = "5s";
+                NoNewPrivileges = true;
+                PrivateTmp = true;
+                ProtectSystem = "strict";
+                ProtectHome = true;
+                ReadWritePaths = [ cfg.dataDir ];
+              } // lib.optionalAttrs (cfg.environmentFile != null) {
+                EnvironmentFile = cfg.environmentFile;
+              };
+            };
+          };
+        };
+    };
 }
