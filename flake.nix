@@ -67,12 +67,18 @@
           overlays = [
             # Skip torchaudio's pytest suite — it loads multi-GB models and
             # gets OOM-killed (exit 137) on memory-constrained builders.
+            # pytestCheckHook runs in installCheckPhase; we also clobber the
+            # phase scripts so any setup-hook that ignores doInstallCheck
+            # still can't fire the suite.
             (final: prev: {
               python312 = prev.python312.override {
                 packageOverrides = pyfinal: pyprev: {
                   torchaudio = pyprev.torchaudio.overridePythonAttrs (_: {
                     doCheck = false;
                     doInstallCheck = false;
+                    checkPhase = "true";
+                    installCheckPhase = "true";
+                    pytestCheckPhase = "true";
                   });
                 };
               };
