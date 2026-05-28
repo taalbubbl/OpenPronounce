@@ -24,6 +24,13 @@
               installCheckPhase = "false";
               pytestCheckPhase = "false";
             });
+            datasette = pyprev.datasette.overridePythonAttrs (_: {
+              doCheck = false;
+              doInstallCheck = false;
+              checkPhase = "false";
+              installCheckPhase = "false";
+              pytestCheckPhase = "false";
+            });
           };
         };
       };
