@@ -8,39 +8,12 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     let
-      # Skip torchaudio's pytest suite — it loads multi-GB models and gets
-      # OOM-killed (exit 137) on memory-constrained builders. pytestCheckHook
-      # runs in installCheckPhase; we also clobber the phase scripts so any
-      # setup-hook that ignores doInstallCheck still can't fire the suite.
-      # Exposed as overlays.default so downstream flakes (which import their
-      # own nixpkgs) can apply it too.
-      torchaudioNoCheckOverlay = final: prev: {
-        python312 = prev.python312.override {
-          packageOverrides = pyfinal: pyprev: {
-            torchaudio = pyprev.torchaudio.overridePythonAttrs (_: {
-              doCheck = false;
-              doInstallCheck = false;
-              checkPhase = "false";
-              installCheckPhase = "false";
-              pytestCheckPhase = "false";
-            });
-            datasette = pyprev.datasette.overridePythonAttrs (_: {
-              doCheck = false;
-              doInstallCheck = false;
-              checkPhase = "false";
-              installCheckPhase = "false";
-              pytestCheckPhase = "false";
-            });
-          };
-        };
-      };
-
       mkPythonEnv = pkgs:
         let python = pkgs.python312;
         in python.withPackages (ps: with ps; [
           # core ML
-          torch
-          torchaudio
+          torch-bin
+          torchaudio-bin
           transformers
 
           # audio processing
@@ -92,7 +65,6 @@
             allowUnfree = true;
             allowBroken = false;
           };
-          overlays = [ torchaudioNoCheckOverlay ];
         };
 
         pythonEnv = mkPythonEnv pkgs;
@@ -210,15 +182,6 @@
         };
       }
     )) // {
-      # ── Reusable overlay (system-independent) ────────────────────────────
-      # Apply this in downstream flakes so torchaudio is built without its
-      # OOM-prone test suite. Usage:
-      #   pkgs = import nixpkgs {
-      #     inherit system;
-      #     overlays = [ inputs.openpronounce.overlays.default ];
-      #   };
-      overlays.default = torchaudioNoCheckOverlay;
-
       # ── NixOS module (system-independent) ────────────────────────────────
       nixosModules.default = { config, lib, pkgs, ... }:
         let
