@@ -81,6 +81,7 @@
           # utilities
           numpy
           pip
+          ninja
         ]);
     in
     (flake-utils.lib.eachDefaultSystem (system:
