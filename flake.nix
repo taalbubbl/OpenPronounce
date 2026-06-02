@@ -9,11 +9,11 @@
   outputs = { self, nixpkgs, flake-utils }:
     let
       mkPythonEnv = pkgs:
-        let python = pkgs.python312;
+        let python = pkgs.python313;
         in python.withPackages (ps: with ps; [
           # core ML
-          torch-bin
-          torchaudio-bin
+          torch
+          torchaudio
           transformers
 
           # audio processing
