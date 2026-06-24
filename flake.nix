@@ -91,11 +91,11 @@
               --set PHONEMIZER_ESPEAK_PATH "${pkgs.espeak-ng}/bin/espeak-ng" \
               --prefix LD_LIBRARY_PATH : "${pkgs.espeak-ng}/lib" \
               --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.ffmpeg pkgs.espeak-ng pkgs.sox ]}" \
+              --set PYTHONPATH "$out/share/openpronounce" \
               --run 'export OMP_NUM_THREADS="''${OMP_NUM_THREADS:-$(${pkgs.coreutils}/bin/nproc)}"' \
               --run 'export MKL_NUM_THREADS="''${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"' \
               --run 'export OPENBLAS_NUM_THREADS="''${OPENBLAS_NUM_THREADS:-$OMP_NUM_THREADS}"' \
-              --run 'export TORCH_NUM_THREADS="''${TORCH_NUM_THREADS:-$OMP_NUM_THREADS}"' \
-              --chdir "$out/share/openpronounce"
+              --run 'export TORCH_NUM_THREADS="''${TORCH_NUM_THREADS:-$OMP_NUM_THREADS}"'
 
             makeWrapper ${pythonEnv}/bin/streamlit $out/bin/openpronounce-streamlit \
               --add-flags "run streamlit_app.py" \
@@ -312,6 +312,12 @@
                 Group = cfg.group;
                 WorkingDirectory = cfg.dataDir;
                 ExecStart = "${cfg.package}/bin/openpronounce-server --host ${cfg.host} --port ${toString cfg.port}";
+                ExecStartPre = pkgs.writeShellScript "openpronounce-pre" ''
+                  set -e
+                  mkdir -p ${cfg.dataDir}
+                  ln -sfn ${cfg.package}/share/openpronounce/static ${cfg.dataDir}/static
+                  ln -sfn ${cfg.package}/share/openpronounce/templates ${cfg.dataDir}/templates
+                '';
                 Restart = "on-failure";
                 RestartSec = "5s";
                 NoNewPrivileges = true;
