@@ -81,7 +81,7 @@ def process_audio_file(file):
     # Determine file type and process accordingly
     if original_filename.endswith(".webm"):
         # Save webm and convert using existing function
-        wav_path = upload_webm(file)
+        wav_path = upload_webp(file)
 
     elif original_filename.endswith(".mp3"):
         # Save mp3 file temporarily
