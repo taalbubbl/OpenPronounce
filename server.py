@@ -2,6 +2,7 @@ import os
 import random
 import string
 import subprocess
+import tempfile
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
@@ -16,137 +17,120 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
-def upload_webp(file):
-    tempname_random = "".join(
-        random.choices(string.ascii_uppercase + string.digits, k=6)
-    )
-    destination = f"/tmp/{tempname_random}.webm"
+def _random_name(ext: str) -> str:
+    rnd = "".join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    return f"/tmp/{rnd}.{ext}"
 
+
+def upload_webm(file: UploadFile) -> str:
+    """Save an uploaded .webm file and convert it to WAV."""
+    destination = _random_name("webm")
     with open(destination, "wb") as buffer:
         buffer.write(file.file.read())
+    return audio.webp2wav(
+        destination
+    )  # function name in audio module is misleading but OK
 
-    return audio.webp2wav(destination)
 
-
-def convert_mp3_to_wav(input_path):
-    """Convert MP3 to WAV using ffmpeg"""
-    tempname_random = "".join(
-        random.choices(string.ascii_uppercase + string.digits, k=6)
-    )
-    output_path = f"/tmp/{tempname_random}.wav"
-
+def convert_mp3_to_wav(input_path: str) -> str:
+    """Convert MP3 -> 16 kHz mono 16-bit PCM WAV using ffmpeg."""
+    output_path = _random_name("wav")
+    command = [
+        "ffmpeg",
+        "-i",
+        input_path,
+        "-acodec",
+        "pcm_s16le",
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        output_path,
+        "-y",
+    ]
     try:
-        command = [
-            "ffmpeg",
-            "-i",
-            input_path,
-            "-acodec",
-            "pcm_s16le",  # 16-bit PCM
-            "-ar",
-            "16000",  # 16kHz sample rate
-            "-ac",
-            "1",  # mono channel
-            output_path,
-            "-y",  # overwrite output file if exists
-        ]
-
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
         return output_path
-
     except subprocess.CalledProcessError as e:
-        raise Exception(f"FFmpeg conversion failed: {e.stderr}")
+        raise RuntimeError(f"FFmpeg conversion failed: {e.stderr}")
     except FileNotFoundError:
-        raise Exception("FFmpeg not found. Please install ffmpeg first.")
+        raise RuntimeError("FFmpeg not found. Please install ffmpeg first.")
 
 
-def save_uploaded_file(file, extension):
-    """Save uploaded file to temporary location"""
-    tempname_random = "".join(
-        random.choices(string.ascii_uppercase + string.digits, k=6)
-    )
-    destination = f"/tmp/{tempname_random}.{extension}"
-
+def save_uploaded_file(file: UploadFile, extension: str) -> str:
+    """Save an uploaded file to /tmp and return the path."""
+    destination = _random_name(extension)
     with open(destination, "wb") as buffer:
         buffer.write(file.file.read())
-
     return destination
 
 
-def process_audio_file(file):
-    """Process uploaded audio file and convert to WAV if needed"""
+def process_audio_file(file: UploadFile) -> str:
+    """Return a WAV path for any supported upload (.webm/.mp3/.wav)."""
+    original_filename = (file.filename or "").lower()
+    print("filename:", original_filename)
 
-    # Get the original filename
-    original_filename = file.filename.lower()
-
-    # Determine file type and process accordingly
     if original_filename.endswith(".webm"):
-        # Save webm and convert using existing function
-        wav_path = upload_webp(file)
+        # ✅ FIX: pass the UploadFile object, not the filename string
+        return upload_webm(file)
 
-    elif original_filename.endswith(".mp3"):
-        # Save mp3 file temporarily
+    if original_filename.endswith(".mp3"):
         mp3_path = save_uploaded_file(file, "mp3")
         try:
-            # Convert mp3 to wav
-            wav_path = convert_mp3_to_wav(mp3_path)
+            return convert_mp3_to_wav(mp3_path)
         finally:
-            # Clean up temporary mp3 file
             if os.path.exists(mp3_path):
                 os.remove(mp3_path)
 
-    elif original_filename.endswith(".wav"):
-        # Save wav file directly
-        wav_path = save_uploaded_file(file, "wav")
+    if original_filename.endswith(".wav"):
+        return save_uploaded_file(file, "wav")
 
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Unsupported file format. Please upload .webm, .mp3, or .wav files only.",
-        )
-
-    return wav_path
+    raise HTTPException(
+        status_code=400,
+        detail="Unsupported file format. Please upload .webm, .mp3, or .wav files only.",
+    )
 
 
 @app.post("/pronunciation")
 async def api_analyze_pronunciation(
     file: UploadFile = File(...), expected_text: str = Form(...)
 ):
-    from datetime import datetime
-
-    # Get current timestamp and format it
-    formatted_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Print the formatted timestamp
-    print("Running pronounciation model at:", formatted_timestamp)
+    print(
+        "Running pronunciation model at:",
+        __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
 
     wav_file = process_audio_file(file)
-
     try:
         sound = audio.load(wav_file)
         return speech.compare_audio_with_text(sound, expected_text)
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Something went wrong")
+    finally:
+        # Clean up the temp WAV so /tmp doesn't grow forever
+        if os.path.exists(wav_file):
+            os.remove(wav_file)
 
 
 @app.post("/speech2text")
 async def api_speech2text(file: UploadFile = File(...)):
-    from datetime import datetime
+    print(
+        "Running stt model at:",
+        __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
 
-    # Get current timestamp and format it
-    formatted_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Print the formatted timestamp
-    print("Running stt model at:", formatted_timestamp)
-    wav_file = upload_webp(file)
+    # ✅ FIX: use the unified processor so mp3/wav also work here
+    wav_file = process_audio_file(file)
     try:
         sound = audio.load(wav_file)
-        return {
-            "transcript": speech.transcribe(sound),
-        }
+        return {"transcript": speech.transcribe(sound)}
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Something went wrong")
+    finally:
+        if os.path.exists(wav_file):
+            os.remove(wav_file)
 
 
 @app.post("/phonemes")
