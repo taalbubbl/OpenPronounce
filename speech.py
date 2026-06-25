@@ -19,16 +19,16 @@ from transformers import (
 
 import audio
 
-#MOdel to try: jonatasgrosman/wav2vec2-large-xlsr-53-dutch
+# MOdel to try: jonatasgrosman/wav2vec2-large-xlsr-53-dutch
 
 # Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
-EMBEDDING_MODEL_NAME = "amsterdamNLP/Wav2Vec2-NL"
+EMBEDDING_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
 feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(EMBEDDING_MODEL_NAME)
 model = Wav2Vec2Model.from_pretrained(EMBEDDING_MODEL_NAME)
 model.eval()
 
 # Separate CTC-fine-tuned model for transcription (ships processor + vocab)
-CTC_MODEL_NAME = "facebook/wav2vec2-large-xlsr-53-dutch"
+CTC_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
 ctc_processor = Wav2Vec2Processor.from_pretrained(CTC_MODEL_NAME)
 modelCTC = Wav2Vec2ForCTC.from_pretrained(CTC_MODEL_NAME)
 modelCTC.eval()
@@ -477,7 +477,9 @@ def interpolate_f0(f0):
 
 def transcribe(audio):
     """Transcribe the audio into text with Wav2Vec2"""
-    inputs = ctc_processor(audio, sampling_rate=16000, return_tensors="pt", padding=True)
+    inputs = ctc_processor(
+        audio, sampling_rate=16000, return_tensors="pt", padding=True
+    )
     with torch.no_grad():
         logits = modelCTC(inputs.input_values).logits
     predicted_ids = torch.argmax(logits, dim=-1)
