@@ -1,3 +1,4 @@
+import os
 import re
 import warnings
 
@@ -22,15 +23,22 @@ import audio
 # MOdel to try: jonatasgrosman/wav2vec2-large-xlsr-53-dutch
 
 # Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
+# Define custom download folder from environment variable (falls back to "mydir" if not set)
+MODEL_DIR = os.environ.get("MODEL_DIR", "/var/lib/openpronounce/models")
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
 EMBEDDING_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
-feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(EMBEDDING_MODEL_NAME)
-model = Wav2Vec2Model.from_pretrained(EMBEDDING_MODEL_NAME)
+feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+    EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR
+)
+model = Wav2Vec2Model.from_pretrained(EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR)
 model.eval()
 
 # Separate CTC-fine-tuned model for transcription (ships processor + vocab)
 CTC_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
-ctc_processor = Wav2Vec2Processor.from_pretrained(CTC_MODEL_NAME)
-modelCTC = Wav2Vec2ForCTC.from_pretrained(CTC_MODEL_NAME)
+ctc_processor = Wav2Vec2Processor.from_pretrained(CTC_MODEL_NAME, cache_dir=MODEL_DIR)
+modelCTC = Wav2Vec2ForCTC.from_pretrained(CTC_MODEL_NAME, cache_dir=MODEL_DIR)
 modelCTC.eval()
 
 
