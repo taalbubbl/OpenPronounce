@@ -16,6 +16,12 @@
           torchaudio
           transformers
 
+          # Hugging Face ecosystem
+          huggingface-hub
+          datasets
+          tokenizers
+          accelerate
+
           # audio processing
           librosa
           soundfile

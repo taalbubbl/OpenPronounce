@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torchaudio
 from fastdtw import fastdtw
+from huggingface_hub import hf_hub_download, snapshot_download
 from phonemizer import phonemize
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler
@@ -20,7 +21,7 @@ from transformers import (
 
 import audio
 
-# MOdel to try: jonatasgrosman/wav2vec2-large-xlsr-53-dutch
+# Model to try: jonatasgrosman/wav2vec2-large-xlsr-53-dutch
 
 # Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
 # Define custom download folder from environment variable (falls back to "mydir" if not set)
@@ -34,25 +35,71 @@ if HF_TOKEN:
 
     login(token=HF_TOKEN)
 
+
+# Helper function to download with progress bar
+def download_with_progress(repo_id, cache_dir, token=None, is_model=True):
+    """Download model or processor files with progress bar"""
+    print(f"📥 Downloading {repo_id}...")
+
+    try:
+        if is_model:
+            # Download all model files
+            snapshot_path = snapshot_download(
+                repo_id=repo_id,
+                cache_dir=cache_dir,
+                token=token,
+                resume_download=True,
+                max_workers=4,
+                tqdm_class=tqdm,
+            )
+            print(f"✅ Model downloaded to: {snapshot_path}")
+        else:
+            # For processor, we just download the required files
+            # The processor will handle downloading during from_pretrained
+            pass
+    except Exception as e:
+        print(f"⚠️ Warning during download: {e}")
+        # Continue anyway - from_pretrained will try again
+
+
+# Show download progress for models
+print("=" * 50)
+print("🚀 Initializing pronunciation analysis models...")
+print("=" * 50)
+
 # Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
 EMBEDDING_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
+
+print(f"\n📦 Loading feature extractor: {EMBEDDING_MODEL_NAME}")
 feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
     EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
 )
+
+print(f"\n🧠 Loading embedding model: {EMBEDDING_MODEL_NAME}")
 model = Wav2Vec2Model.from_pretrained(
     EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
 )
 model.eval()
+print("✅ Embedding model loaded successfully!")
 
 # Separate CTC-fine-tuned model for transcription (ships processor + vocab)
 CTC_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
+
+print(f"\n📝 Loading CTC processor: {CTC_MODEL_NAME}")
 ctc_processor = Wav2Vec2Processor.from_pretrained(
     CTC_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
 )
+
+print(f"\n🎯 Loading CTC model: {CTC_MODEL_NAME}")
 modelCTC = Wav2Vec2ForCTC.from_pretrained(
     CTC_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
 )
 modelCTC.eval()
+print("✅ CTC model loaded successfully!")
+
+print("\n" + "=" * 50)
+print("✅ All models loaded and ready!")
+print("=" * 50 + "\n")
 
 
 def extract_embeddings(audio_waveform, sampling_rate=16000):
