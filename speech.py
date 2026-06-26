@@ -27,18 +27,31 @@ import audio
 MODEL_DIR = os.environ.get("MODEL_DIR", "/var/lib/openpronounce/models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
+# Get Hugging Face token from environment
+HF_TOKEN = os.environ.get("HF_TOKEN", None)
+if HF_TOKEN:
+    from huggingface_hub import login
+
+    login(token=HF_TOKEN)
+
 # Encoder for embedding extraction (no tokenizer shipped with this checkpoint)
 EMBEDDING_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
 feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
-    EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR
+    EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
 )
-model = Wav2Vec2Model.from_pretrained(EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR)
+model = Wav2Vec2Model.from_pretrained(
+    EMBEDDING_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
+)
 model.eval()
 
 # Separate CTC-fine-tuned model for transcription (ships processor + vocab)
 CTC_MODEL_NAME = "jonatasgrosman/wav2vec2-large-xlsr-53-dutch"
-ctc_processor = Wav2Vec2Processor.from_pretrained(CTC_MODEL_NAME, cache_dir=MODEL_DIR)
-modelCTC = Wav2Vec2ForCTC.from_pretrained(CTC_MODEL_NAME, cache_dir=MODEL_DIR)
+ctc_processor = Wav2Vec2Processor.from_pretrained(
+    CTC_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
+)
+modelCTC = Wav2Vec2ForCTC.from_pretrained(
+    CTC_MODEL_NAME, cache_dir=MODEL_DIR, token=HF_TOKEN
+)
 modelCTC.eval()
 
 
